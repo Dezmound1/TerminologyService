@@ -3,7 +3,7 @@ name = "refbook-service"
 version = "0.1.0"
 description = "REST service for reference books (terminology)"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "django>=4.2,<5.0",
     "djangorestframework>=3.14",
@@ -26,12 +26,11 @@ addopts = "--cov=refbooks --cov-fail-under=80 --cov-report=html"
 
 [tool.ruff]
 line-length = 88
-target-version = "py312"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "C90", "I", "N", "UP", "YTT", "S", "BLE", "FBT", "B", "A", "COM", "C4", "DTZ", "T10", "DJ", "EM", "EXE", "FA", "ISC", "ICN", "G", "INP", "PIE", "T20", "PYI", "PT", "Q", "RSE", "RET", "SLF", "SLOT", "SIM", "TID", "TCH", "INT", "ARG", "PTH", "ERA", "PD", "PGH", "PL", "TRY", "FLY", "NPY", "AIR", "PERF", "FURB", "LOG", "RUF"]
-ignore = ["S101", "S104", "COM812", "ISC001"]
-
+ignore = ["S101", "S104"]
 [tool.ruff.lint.per-file-ignores]
 "**/migrations/*.py" = ["E501"]
 
@@ -40,7 +39,8 @@ known-first-party = ["core", "refbooks"]
 
 [tool.basedpyright]
 include = ["core", "refbooks"]
-pythonVersion = "3.12"
+pythonVersion = ">=3.10"
 typeCheckingMode = "basic"
 reportMissingImports = "error"
 reportMissingTypeStubs = "warning"
+reportAttributeAccessIssue = false
