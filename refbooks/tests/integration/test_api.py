@@ -1,121 +1,152 @@
+from datetime import date
+
 import pytest
-from django.test import TestCase
-from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
 from refbooks.models import Element, RefBook, Version
 
 
-class RefBooksAPITestCase(APITestCase):
-    def setUp(self):
-        self.refbook1 = RefBook.objects.create(code="RB1", name="RefBook 1", description="Test refbook 1")
-        self.refbook2 = RefBook.objects.create(code="RB2", name="RefBook 2", description="Test refbook 2")
+@pytest.fixture
+def api_client() -> APIClient:
+    return APIClient()
 
-        self.version1_1 = Version.objects.create(refbook=self.refbook1, version="1.0", start_date="2023-01-01")
-        self.version1_2 = Version.objects.create(refbook=self.refbook1, version="2.0", start_date="2024-01-01")
-        self.version2_1 = Version.objects.create(refbook=self.refbook2, version="1.0", start_date="2025-01-01")
 
-        Element.objects.create(version=self.version1_2, code="C1", value="Value 1")
-        Element.objects.create(version=self.version1_2, code="C2", value="Value 2")
+@pytest.fixture
+def refbook1(db: None) -> RefBook:
+    rb = RefBook.objects.create(code="RB1", name="RefBook 1")
+    v_old = Version.objects.create(refbook=rb, version="1.0", start_date=date(2023, 1, 1))
+    v_new = Version.objects.create(refbook=rb, version="2.0", start_date=date(2024, 1, 1))
+    Element.objects.create(version=v_new, code="C1", value="Value 1")
+    Element.objects.create(version=v_new, code="C2", value="Value 2")
+    Element.objects.create(version=v_old, code="OLD", value="Old Value")
+    return rb
 
-    def test_get_refbooks_no_date(self):
-        """Test GET /refbooks/ without date parameter"""
-        url = reverse("refbooks-list")
-        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        self.assertIn("refbooks", data)
-        refbook_codes = [rb["code"] for rb in data["refbooks"]]
-        self.assertIn("RB1", refbook_codes)
+@pytest.fixture
+def refbook_future(db: None) -> RefBook:
+    """Справочник, у которого все версии в будущем — нет текущей версии."""
+    rb = RefBook.objects.create(code="FUTURE", name="Future RefBook")
+    Version.objects.create(refbook=rb, version="1.0", start_date=date(2099, 1, 1))
+    return rb
 
-    def test_get_refbooks_with_date(self):
-        """Test GET /refbooks/?date=2023-06-01"""
-        url = reverse("refbooks-list")
-        response = self.client.get(url, {"date": "2023-06-01"})
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        refbook_codes = [rb["code"] for rb in data["refbooks"]]
-        self.assertIn("RB1", refbook_codes)
+@pytest.mark.django_db
+class TestRefBooksList:
+    def test_no_date_returns_all(self, api_client: APIClient, refbook1: RefBook) -> None:
+        RefBook.objects.create(code="RB2", name="RefBook 2")  # без версий
 
-    def test_get_refbooks_invalid_date(self):
-        """Test GET /refbooks/?date=invalid"""
-        url = reverse("refbooks-list")
-        response = self.client.get(url, {"date": "invalid"})
+        response = api_client.get("/api/refbooks/")
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("detail", response.json())
+        assert response.status_code == status.HTTP_200_OK
+        codes = {rb["code"] for rb in response.json()["refbooks"]}
+        assert codes == {"RB1", "RB2"}
 
-    def test_get_refbook_elements_current_version(self):
-        """Test GET /refbooks/1/elements/ (current version)"""
-        url = reverse("refbook-elements", kwargs={"id": self.refbook1.id})
-        response = self.client.get(url)
+    def test_filtered_by_date(self, api_client: APIClient, refbook1: RefBook) -> None:
+        # refbook1: v1.0 с 2023, v2.0 с 2024 — на 2023-06-01 действует только v1.0
+        RefBook.objects.create(code="RB2", name="RefBook 2")  # без версий — не должен попасть
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        self.assertIn("elements", data)
-        self.assertEqual(len(data["elements"]), 2)
-        codes = [e["code"] for e in data["elements"]]
-        self.assertIn("C1", codes)
-        self.assertIn("C2", codes)
+        response = api_client.get("/api/refbooks/?date=2023-06-01")
 
-    def test_get_refbook_elements_specific_version(self):
-        """Test GET /refbooks/1/elements/?version=1.0"""
-        url = reverse("refbook-elements", kwargs={"id": self.refbook1.id})
-        response = self.client.get(url, {"version": "1.0"})
+        assert response.status_code == status.HTTP_200_OK
+        codes = {rb["code"] for rb in response.json()["refbooks"]}
+        assert codes == {"RB1"}
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        self.assertEqual(len(data["elements"]), 0)
+    def test_invalid_date(self, api_client: APIClient) -> None:
+        response = api_client.get("/api/refbooks/?date=not-a-date")
 
-    def test_get_refbook_elements_not_found(self):
-        """Test GET /refbooks/999/elements/"""
-        url = reverse("refbook-elements", kwargs={"id": 999})
-        response = self.client.get(url)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "detail" in response.json()
 
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertIn("detail", response.json())
 
-    def test_get_refbook_elements_version_not_found(self):
-        """Test GET /refbooks/1/elements/?version=3.0"""
-        url = reverse("refbook-elements", kwargs={"id": self.refbook1.id})
-        response = self.client.get(url, {"version": "3.0"})
+@pytest.mark.django_db
+class TestRefBookElements:
+    def test_current_version_returns_latest(self, api_client: APIClient, refbook1: RefBook) -> None:
+        response = api_client.get(f"/api/refbooks/{refbook1.pk}/elements/")
 
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertIn("detail", response.json())
+        assert response.status_code == status.HTTP_200_OK
+        codes = {e["code"] for e in response.json()["elements"]}
+        assert codes == {"C1", "C2"}  # элементы версии 2.0
 
-    def test_check_element_exists_true(self):
-        """Test GET /refbooks/1/check_element?code=C1&value=Value 1"""
-        url = reverse("check-element", kwargs={"id": self.refbook1.id})
-        response = self.client.get(url, {"code": "C1", "value": "Value 1"})
+    def test_specific_version(self, api_client: APIClient, refbook1: RefBook) -> None:
+        response = api_client.get(f"/api/refbooks/{refbook1.pk}/elements/?version=1.0")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        self.assertEqual(data["exists"], True)
+        assert response.status_code == status.HTTP_200_OK
+        codes = {e["code"] for e in response.json()["elements"]}
+        assert codes == {"OLD"}
 
-    def test_check_element_exists_false(self):
-        """Test GET /refbooks/1/check_element?code=C3&value=Value 3"""
-        url = reverse("check-element", kwargs={"id": self.refbook1.id})
-        response = self.client.get(url, {"code": "C3", "value": "Value 3"})
+    def test_refbook_not_found(self, api_client: APIClient) -> None:
+        response = api_client.get("/api/refbooks/999/elements/")
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        data = response.json()
-        self.assertEqual(data["exists"], False)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json()["detail"] == "Справочник не найден"
 
-    def test_check_element_missing_params(self):
-        """Test GET /refbooks/1/check_element without code/value"""
-        url = reverse("check-element", kwargs={"id": self.refbook1.id})
-        response = self.client.get(url, {"code": "C1"})
+    def test_version_not_found(self, api_client: APIClient, refbook1: RefBook) -> None:
+        response = api_client.get(f"/api/refbooks/{refbook1.pk}/elements/?version=9.9")
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("detail", response.json())
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.json()["detail"] == "Версия не найдена"
 
-    def test_check_element_refbook_not_found(self):
-        """Test GET /refbooks/999/check_element"""
-        url = reverse("check-element", kwargs={"id": 999})
-        response = self.client.get(url, {"code": "C1", "value": "Value 1"})
+    def test_no_current_version_returns_empty(
+        self, api_client: APIClient, refbook_future: RefBook
+    ) -> None:
+        response = api_client.get(f"/api/refbooks/{refbook_future.pk}/elements/")
 
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertIn("detail", response.json())
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"elements": []}
+
+
+@pytest.mark.django_db
+class TestCheckElement:
+    def test_existing_element(self, api_client: APIClient, refbook1: RefBook) -> None:
+        response = api_client.get(
+            f"/api/refbooks/{refbook1.pk}/check_element/",
+            {"code": "C1", "value": "Value 1"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"exists": True}
+
+    def test_wrong_value(self, api_client: APIClient, refbook1: RefBook) -> None:
+        response = api_client.get(
+            f"/api/refbooks/{refbook1.pk}/check_element/",
+            {"code": "C1", "value": "Wrong"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"exists": False}
+
+    def test_missing_params(self, api_client: APIClient, refbook1: RefBook) -> None:
+        response = api_client.get(
+            f"/api/refbooks/{refbook1.pk}/check_element/",
+            {"code": "C1"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_refbook_not_found(self, api_client: APIClient) -> None:
+        response = api_client.get(
+            "/api/refbooks/999/check_element/",
+            {"code": "C1", "value": "Value 1"},
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_version_not_found(self, api_client: APIClient, refbook1: RefBook) -> None:
+        response = api_client.get(
+            f"/api/refbooks/{refbook1.pk}/check_element/",
+            {"code": "C1", "value": "Value 1", "version": "9.9"},
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_no_current_version_returns_false(
+        self, api_client: APIClient, refbook_future: RefBook
+    ) -> None:
+        response = api_client.get(
+            f"/api/refbooks/{refbook_future.pk}/check_element/",
+            {"code": "C1", "value": "Value 1"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"exists": False}

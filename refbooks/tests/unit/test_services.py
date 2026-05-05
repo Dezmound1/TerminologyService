@@ -1,232 +1,121 @@
-import pytest
+from datetime import date
 from unittest.mock import Mock
 
-from refbooks.domain.entities import RefBookEntity, VersionEntity
-from refbooks.repositories.refbook_repository import RefBookRepository, VersionRepository
-from refbooks.services.refbook_service import RefBookService
+import pytest
+
+from refbooks.domain.entities import ElementEntity, RefBookEntity, VersionEntity
+from refbooks.domain.exceptions import RefBookNotFound, VersionNotFound
+from refbooks.services.refbook_service import ElementService, RefBookService
+
+
+def _make_element_service(refbook_exists: bool = True) -> ElementService:
+    service = ElementService()
+    service.refbook_repo = Mock()
+    service.refbook_repo.exists.return_value = refbook_exists
+    service.version_repo = Mock()
+    service.element_repo = Mock()
+    return service
 
 
 class TestRefBookService:
-    def test_get_refbooks_list_with_date(self):
-        # Arrange
-        mock_repo = Mock(spec=RefBookRepository)
+    def test_without_date_returns_all(self) -> None:
         service = RefBookService()
-        service.refbook_repo = mock_repo
+        service.refbook_repo = Mock()
+        service.refbook_repo.list_all.return_value = [RefBookEntity(id=1, code="RB1", name="N")]
 
-        expected_refbooks = [
-            RefBookEntity(id=1, code="RB1", name="RefBook 1", description=""),
-            RefBookEntity(id=2, code="RB2", name="RefBook 2", description=""),
-        ]
-        mock_repo.list_with_version_on_date.return_value = expected_refbooks
-
-        # Act
-        result = service.get_refbooks_list(date(2023, 1, 1))
-
-        # Assert
-        assert result == expected_refbooks
-        mock_repo.list_with_version_on_date.assert_called_once_with(date(2023, 1, 1))
-
-    def test_get_refbooks_list_without_date_uses_today(self):
-        # Arrange
-        mock_repo = Mock(spec=RefBookRepository)
-        service = RefBookService()
-        service.refbook_repo = mock_repo
-
-        expected_refbooks = []
-        mock_repo.list_with_version_on_date.return_value = expected_refbooks
-
-        # Act
         result = service.get_refbooks_list()
 
-        # Assert
-        assert result == expected_refbooks
-        # Should be called with today's date, but we can't mock timezone.now easily
-        mock_repo.list_with_version_on_date.assert_called_once()
+        assert len(result) == 1
+        service.refbook_repo.list_all.assert_called_once_with()
+        service.refbook_repo.list_with_version_on_date.assert_not_called()
 
-
-class TestVersionService:
-    def test_get_current_version_exists(self):
-        # Arrange
-        mock_repo = Mock(spec=VersionRepository)
-        from refbooks.services.refbook_service import VersionService
-
-        service = VersionService()
-        service.version_repo = mock_repo
-
-        expected_version = VersionEntity(id=1, refbook_id=1, version="1.0", start_date=date(2023, 1, 1))
-        mock_repo.get_current_version.return_value = expected_version
-
-        # Act
-        result = service.get_current_version(1, date(2023, 6, 1))
-
-        # Assert
-        assert result == expected_version
-        mock_repo.get_current_version.assert_called_once_with(1, date(2023, 6, 1))
-
-    def test_get_current_version_none(self):
-        # Arrange
-        mock_repo = Mock(spec=VersionRepository)
-        from refbooks.services.refbook_service import VersionService
-
-        service = VersionService()
-        service.version_repo = mock_repo
-
-        mock_repo.get_current_version.return_value = None
-
-        # Act
-        result = service.get_current_version(1)
-
-        # Assert
-        assert result is None
-
-    def test_get_version_by_string(self):
-        # Arrange
-        mock_repo = Mock(spec=VersionRepository)
-        from refbooks.services.refbook_service import VersionService
-
-        service = VersionService()
-        service.version_repo = mock_repo
-
-        expected_version = VersionEntity(id=1, refbook_id=1, version="1.0", start_date=date(2023, 1, 1))
-        mock_repo.get_by_refbook_and_version.return_value = expected_version
-
-        # Act
-        result = service.get_version_by_string(1, "1.0")
-
-        # Assert
-        assert result == expected_version
-        mock_repo.get_by_refbook_and_version.assert_called_once_with(1, "1.0")
-
-
-class TestElementService:
-    def test_get_elements_for_version_with_version_string(self):
-        # Arrange
-        from refbooks.services.refbook_service import ElementService
-
-        service = ElementService()
-
-        # Mock repositories
+    def test_with_date_filters(self) -> None:
+        service = RefBookService()
         service.refbook_repo = Mock()
-        service.version_repo = Mock()
-        service.element_repo = Mock()
+        service.refbook_repo.list_with_version_on_date.return_value = []
 
-        # Mock refbook exists
-        service.refbook_repo.get_by_id.return_value = RefBookEntity(id=1, code="RB1", name="RefBook 1", description="")
+        service.get_refbooks_list(date(2023, 6, 1))
 
-        # Mock version exists
-        version_entity = VersionEntity(id=10, refbook_id=1, version="1.0", start_date=date(2023, 1, 1))
-        service.version_repo.get_by_refbook_and_version.return_value = version_entity
+        service.refbook_repo.list_with_version_on_date.assert_called_once_with(date(2023, 6, 1))
 
-        # Mock elements
-        from refbooks.domain.entities import ElementEntity
 
-        expected_elements = [
-            ElementEntity(id=1, version_id=10, code="C1", value="Value 1"),
+class TestElementServiceGetElements:
+    def test_uses_explicit_version(self) -> None:
+        service = _make_element_service()
+        service.version_repo.get_by_refbook_and_version.return_value = VersionEntity(
+            id=10, refbook_id=1, version="1.0", start_date=date(2023, 1, 1)
+        )
+        service.element_repo.list_by_version.return_value = [
+            ElementEntity(id=1, version_id=10, code="C1", value="V1")
         ]
-        service.element_repo.list_by_version.return_value = expected_elements
 
-        # Act
         result = service.get_elements_for_version(1, "1.0")
 
-        # Assert
-        assert result == expected_elements
-        service.refbook_repo.get_by_id.assert_called_once_with(1)
-        service.version_repo.get_by_refbook_and_version.assert_called_once_with(1, "1.0")
+        assert len(result) == 1
         service.element_repo.list_by_version.assert_called_once_with(10)
 
-    def test_get_elements_for_version_current_version(self):
-        # Arrange
-        from refbooks.services.refbook_service import ElementService
+    def test_uses_current_version_when_not_specified(self) -> None:
+        service = _make_element_service()
+        service.version_repo.get_current_version.return_value = VersionEntity(
+            id=10, refbook_id=1, version="2.0", start_date=date(2024, 1, 1)
+        )
+        service.element_repo.list_by_version.return_value = []
 
-        service = ElementService()
+        service.get_elements_for_version(1, None)
 
-        # Mock repositories
-        service.refbook_repo = Mock()
-        service.version_repo = Mock()
-        service.element_repo = Mock()
-
-        # Mock refbook exists
-        service.refbook_repo.get_by_id.return_value = RefBookEntity(id=1, code="RB1", name="RefBook 1", description="")
-
-        # Mock current version
-        version_entity = VersionEntity(id=10, refbook_id=1, version="1.0", start_date=date(2023, 1, 1))
-        service.version_repo.get_current_version.return_value = version_entity
-
-        # Mock elements
-        from refbooks.domain.entities import ElementEntity
-
-        expected_elements = [
-            ElementEntity(id=1, version_id=10, code="C1", value="Value 1"),
-        ]
-        service.element_repo.list_by_version.return_value = expected_elements
-
-        # Act
-        result = service.get_elements_for_version(1, None)
-
-        # Assert
-        assert result == expected_elements
         service.version_repo.get_current_version.assert_called_once()
+        service.element_repo.list_by_version.assert_called_once_with(10)
 
-    def test_get_elements_for_version_no_current_version(self):
-        # Arrange
-        from refbooks.services.refbook_service import ElementService
-
-        service = ElementService()
-
-        # Mock repositories
-        service.refbook_repo = Mock()
-        service.version_repo = Mock()
-
-        # Mock refbook exists
-        service.refbook_repo.get_by_id.return_value = RefBookEntity(id=1, code="RB1", name="RefBook 1", description="")
-
-        # Mock no current version
+    def test_returns_empty_when_no_current_version(self) -> None:
+        service = _make_element_service()
         service.version_repo.get_current_version.return_value = None
 
-        # Act
-        result = service.get_elements_for_version(1, None)
+        assert service.get_elements_for_version(1, None) == []
+        service.element_repo.list_by_version.assert_not_called()
 
-        # Assert
-        assert result == []
+    def test_raises_when_refbook_missing(self) -> None:
+        service = _make_element_service(refbook_exists=False)
 
-    def test_check_element_exists_true(self):
-        # Arrange
-        from refbooks.services.refbook_service import ElementService
+        with pytest.raises(RefBookNotFound):
+            service.get_elements_for_version(999, None)
 
-        service = ElementService()
+    def test_propagates_version_not_found(self) -> None:
+        service = _make_element_service()
+        service.version_repo.get_by_refbook_and_version.side_effect = VersionNotFound("nope")
 
-        # Mock get_elements_for_version
-        from refbooks.domain.entities import ElementEntity
+        with pytest.raises(VersionNotFound):
+            service.get_elements_for_version(1, "9.9")
 
-        elements = [
-            ElementEntity(id=1, version_id=10, code="C1", value="Value 1"),
-            ElementEntity(id=2, version_id=10, code="C2", value="Value 2"),
-        ]
-        service.get_elements_for_version = Mock(return_value=elements)
 
-        # Act
-        result = service.check_element_exists(1, "C1", "Value 1", "1.0")
+class TestElementServiceCheckElement:
+    def test_returns_true_when_element_exists(self) -> None:
+        service = _make_element_service()
+        service.version_repo.get_by_refbook_and_version.return_value = VersionEntity(
+            id=10, refbook_id=1, version="1.0", start_date=date(2023, 1, 1)
+        )
+        service.element_repo.exists.return_value = True
 
-        # Assert
-        assert result is True
-        service.get_elements_for_version.assert_called_once_with(1, "1.0")
+        assert service.check_element_exists(1, "C1", "V1", "1.0") is True
+        service.element_repo.exists.assert_called_once_with(10, "C1", "V1")
 
-    def test_check_element_exists_false(self):
-        # Arrange
-        from refbooks.services.refbook_service import ElementService
+    def test_returns_false_when_element_missing(self) -> None:
+        service = _make_element_service()
+        service.version_repo.get_by_refbook_and_version.return_value = VersionEntity(
+            id=10, refbook_id=1, version="1.0", start_date=date(2023, 1, 1)
+        )
+        service.element_repo.exists.return_value = False
 
-        service = ElementService()
+        assert service.check_element_exists(1, "C1", "V1", "1.0") is False
 
-        # Mock get_elements_for_version
-        from refbooks.domain.entities import ElementEntity
+    def test_returns_false_when_no_current_version(self) -> None:
+        service = _make_element_service()
+        service.version_repo.get_current_version.return_value = None
 
-        elements = [
-            ElementEntity(id=1, version_id=10, code="C1", value="Value 1"),
-        ]
-        service.get_elements_for_version = Mock(return_value=elements)
+        assert service.check_element_exists(1, "C1", "V1") is False
+        service.element_repo.exists.assert_not_called()
 
-        # Act
-        result = service.check_element_exists(1, "C2", "Value 2", "1.0")
+    def test_raises_when_refbook_missing(self) -> None:
+        service = _make_element_service(refbook_exists=False)
 
-        # Assert
-        assert result is False
+        with pytest.raises(RefBookNotFound):
+            service.check_element_exists(999, "C1", "V1")

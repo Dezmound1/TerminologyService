@@ -52,7 +52,7 @@ class RefBooksListView(views.APIView):
                 target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             except ValueError:
                 return Response(
-                    {"detail": "Invalid date format. Use YYYY-MM-DD"},
+                    {"detail": "Некорректный формат даты, ожидается YYYY-MM-DD"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -157,7 +157,7 @@ class CheckElementView(views.APIView):
 
         if not code or not value:
             return Response(
-                {"detail": "Parameters 'code' and 'value' are required"},
+                {"detail": "Параметры code и value обязательны"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
