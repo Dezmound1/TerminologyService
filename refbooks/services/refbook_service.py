@@ -16,10 +16,8 @@ class RefBookService:
         self.version_repo = VersionRepository()
 
     def get_refbooks_list(self, on_date: date | None = None) -> list[RefBookEntity]:
-        """Get all refbooks that have a version for given date"""
         if on_date is None:
-            on_date = timezone.now().date()
-
+            return self.refbook_repo.list_all()
         return self.refbook_repo.list_with_version_on_date(on_date)
 
 

@@ -1,20 +1,10 @@
 # Django stuff:
-*.log
-local_settings.py
 db.sqlite3
-
-# pyenv
-.python-version
-
-# SageMath parsed files
-*.sage.py
 
 # Environments
 .env
 .venv
 
-# Pyre type checker
-.pyre/
 
 # IDE
 .vscode/
@@ -35,3 +25,6 @@ __pycache__/
 
 # Virtual environments
 .venv/
+
+# Ruff
+.ruff_cache/
