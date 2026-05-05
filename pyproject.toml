@@ -27,7 +27,15 @@ settings_module = "core.settings"
 
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "core.settings"
-addopts = "--cov=refbooks --cov-fail-under=80 --cov-report=html"
+addopts = "--cov=refbooks --cov-fail-under=80 --cov-report=html --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["refbooks"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "refbooks/apps.py",
+]
 
 [tool.ruff]
 line-length = 88

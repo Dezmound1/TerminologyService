@@ -2,65 +2,59 @@ version: '3'
 
 tasks:
   help:
-    desc: Show help information
+    desc: Показать список команд
     cmds:
       - task --list-all
 
   install:
-    desc: Install all dependencies
+    desc: Установить зависимости через uv
     cmds:
       - uv sync
-    silent: false
+
+  build:
+    desc: Собрать docker-образ приложения
+    cmds:
+      - docker compose build
 
   up:
-    desc: Start all services (PostgreSQL, Web)
+    desc: Поднять postgres и приложение
     cmds:
-      - docker-compose up -d
-      - echo "Services started! Web available at http://localhost:8000"
-      - echo "Swagger available at http://localhost:8000/api/schema/swagger-ui/"
+      - docker compose up -d
+      - echo "API - http://localhost:8000"
+      - echo "Swagger - http://localhost:8000/api/schema/swagger-ui/"
+      - echo "Admin - http://localhost:8000/admin/"
 
   down:
-    desc: Stop all services
+    desc: Остановить контейнеры
     cmds:
-      - docker-compose down
-
-  seed:
-    desc: Load test data into database
-    cmds:
-      - uv run python load_test_data.py
-      - echo "Test data loaded!"
-
-  createsuperuser:
-    desc: Create admin user
-    cmds:
-      - uv run python manage.py createsuperuser
+      - docker compose down
 
   test:
-    desc: Run all tests
+    desc: Запустить все тесты
     cmds:
-      - uv run pytest -v
+      - docker compose exec app uv run pytest
 
   test-unit:
-    desc: Run unit tests only
+    desc: Только юнит-тесты (без БД)
     cmds:
       - uv run pytest refbooks/tests/unit -v
 
   test-integration:
-    desc: Run integration tests only
+    desc: Только интеграционные тесты (нужен поднятый postgres)
     cmds:
-      - uv run pytest refbooks/tests/integration -v
+      - docker compose exec app uv run pytest refbooks/tests/integration -v
 
-  api-test:
-    desc: Test API endpoints manually
+  lint:
+    desc: Запустить ruff
     cmds:
-      - uv run python test_api.py
+      - uv run ruff check .
 
-  swagger:
-    desc: Open Swagger UI in browser
+  format:
+    desc: Отформатировать код
     cmds:
-      - start http://localhost:8000/api/schema/swagger-ui/
+      - uv run ruff format .
 
-  admin:
-    desc: Open admin panel in browser
+  type-check:
+    desc: Проверить типы через basedpyright
     cmds:
-      - start http://localhost:8000/admin/
+      - uv run basedpyright
