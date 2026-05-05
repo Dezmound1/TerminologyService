@@ -114,8 +114,6 @@ refbooks/
 
 **Domain entities (frozen dataclass).** ORM-модели остаются внутри `models.py` и `repositories/`. Сервисы и API работают с иммутабельными dataclass-ами - их легко создать в тестах, не дёргая БД.
 
-**Простые DRF-сериализаторы вместо `ModelSerializer`.** Сериализуем доменные dataclass-ы, а не ORM-объекты. Меньше магии, понятнее, что выходит наружу.
-
 ## Тесты
 
 ```bash
