@@ -34,7 +34,7 @@ def refbook_future(db: None) -> RefBook:
 @pytest.mark.django_db
 class TestRefBooksList:
     def test_no_date_returns_all(self, api_client: APIClient, refbook1: RefBook) -> None:
-        RefBook.objects.create(code="RB2", name="RefBook 2")  # без версий
+        RefBook.objects.create(code="RB2", name="RefBook 2")
 
         response = api_client.get("/api/refbooks/")
 
@@ -43,8 +43,7 @@ class TestRefBooksList:
         assert codes == {"RB1", "RB2"}
 
     def test_filtered_by_date(self, api_client: APIClient, refbook1: RefBook) -> None:
-        # refbook1: v1.0 с 2023, v2.0 с 2024 — на 2023-06-01 действует только v1.0
-        RefBook.objects.create(code="RB2", name="RefBook 2")  # без версий — не должен попасть
+        RefBook.objects.create(code="RB2", name="RefBook 2")
 
         response = api_client.get("/api/refbooks/?date=2023-06-01")
 
@@ -66,7 +65,7 @@ class TestRefBookElements:
 
         assert response.status_code == status.HTTP_200_OK
         codes = {e["code"] for e in response.json()["elements"]}
-        assert codes == {"C1", "C2"}  # элементы версии 2.0
+        assert codes == {"C1", "C2"}
 
     def test_specific_version(self, api_client: APIClient, refbook1: RefBook) -> None:
         response = api_client.get(f"/api/refbooks/{refbook1.pk}/elements/?version=1.0")
