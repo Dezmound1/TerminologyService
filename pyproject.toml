@@ -9,13 +9,17 @@ dependencies = [
     "djangorestframework>=3.14",
     "psycopg[binary]>=3.1",
     "drf-spectacular",
-    "gunicorn",
+]
+
+[dependency-groups]
+dev = [
     "pytest",
     "pytest-django",
     "pytest-cov",
+    "ruff>=0.11",
+    "basedpyright",
     "django-stubs[compatible-mypy]",
     "djangorestframework-stubs",
-    "basedpyright",
 ]
 
 [tool.django]
