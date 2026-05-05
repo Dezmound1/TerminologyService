@@ -1,0 +1,66 @@
+version: '3'
+
+tasks:
+  help:
+    desc: Show help information
+    cmds:
+      - task --list-all
+
+  install:
+    desc: Install all dependencies
+    cmds:
+      - uv sync
+    silent: false
+
+  up:
+    desc: Start all services (PostgreSQL, Web)
+    cmds:
+      - docker-compose up -d
+      - echo "Services started! Web available at http://localhost:8000"
+      - echo "Swagger available at http://localhost:8000/api/schema/swagger-ui/"
+
+  down:
+    desc: Stop all services
+    cmds:
+      - docker-compose down
+
+  seed:
+    desc: Load test data into database
+    cmds:
+      - uv run python load_test_data.py
+      - echo "Test data loaded!"
+
+  createsuperuser:
+    desc: Create admin user
+    cmds:
+      - uv run python manage.py createsuperuser
+
+  test:
+    desc: Run all tests
+    cmds:
+      - uv run pytest -v
+
+  test-unit:
+    desc: Run unit tests only
+    cmds:
+      - uv run pytest refbooks/tests/unit -v
+
+  test-integration:
+    desc: Run integration tests only
+    cmds:
+      - uv run pytest refbooks/tests/integration -v
+
+  api-test:
+    desc: Test API endpoints manually
+    cmds:
+      - uv run python test_api.py
+
+  swagger:
+    desc: Open Swagger UI in browser
+    cmds:
+      - start http://localhost:8000/api/schema/swagger-ui/
+
+  admin:
+    desc: Open admin panel in browser
+    cmds:
+      - start http://localhost:8000/admin/

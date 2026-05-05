@@ -1,3 +1,6 @@
+from rest_framework.response import Response
+
+
 from datetime import datetime
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -32,7 +35,7 @@ class RefBooksListView(views.APIView):
             200: OpenApiParameter(
                 name="refbooks",
                 description="List of reference books",
-                type=list,
+                type=str,
             ),
             400: {"description": "Invalid date format"},
         },
@@ -40,7 +43,7 @@ class RefBooksListView(views.APIView):
         description="Returns list of reference books that have a version for given date",
         tags=["RefBooks"],
     )
-    def get(self, request):
+    def get(self, request) -> Response:
         date_str = request.query_params.get("date")
         target_date = None
 
@@ -81,7 +84,7 @@ class RefBookElementsView(views.APIView):
             200: OpenApiParameter(
                 name="elements",
                 description="List of elements",
-                type=list,
+                type=str,
             ),
             404: {"description": "Reference book or version not found"},
         },
@@ -89,7 +92,7 @@ class RefBookElementsView(views.APIView):
         description="Returns list of elements for specific or current version",
         tags=["RefBooks"],
     )
-    def get(self, request, id):
+    def get(self, request, id) -> Response:
         version_string = request.query_params.get("version")
 
         service = ElementService()
@@ -147,7 +150,7 @@ class CheckElementView(views.APIView):
         description="Check if element with given code and value exists in version",
         tags=["RefBooks"],
     )
-    def get(self, request, id):
+    def get(self, request, id) -> Response:
         code = request.query_params.get("code")
         value = request.query_params.get("value")
         version_string = request.query_params.get("version")

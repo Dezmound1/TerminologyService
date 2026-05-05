@@ -25,3 +25,13 @@ db.sqlite3
 # Another
 *.pyc
 __pycache__/
+
+# Coverage
+.coverage
+.pytest_cache/
+
+# Docker
+.dockerignore
+
+# Virtual environments
+.venv/
